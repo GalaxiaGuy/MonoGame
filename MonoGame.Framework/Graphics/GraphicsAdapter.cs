@@ -76,12 +76,18 @@ namespace Microsoft.Xna.Framework.Graphics
         {
             _view = screen;
         }
+#elif (WINDOWS && OPENGL) || LINUX
+        private OpenTK.DisplayIndex _displayIndex;
+        internal GraphicsAdapter(OpenTK.DisplayIndex displayIndex)
+        {
+            _displayIndex = displayIndex;
+        }
 #else
         internal GraphicsAdapter()
         {
         }
 #endif
-        
+
         public void Dispose()
         {
         }
@@ -135,6 +141,15 @@ namespace Microsoft.Xna.Framework.Graphics
 						new GraphicsAdapter[] {new GraphicsAdapter(UIScreen.MainScreen)});
 #elif ANDROID
                     adapters = new ReadOnlyCollection<GraphicsAdapter>(new GraphicsAdapter[] { new GraphicsAdapter(Game.Instance.Window) });
+#elif (WINDOWS && OPENGL) || LINUX
+                    int displayCount = generateDisplayList().Count;
+                    if (displayCount > 5) displayCount = 5;
+                    GraphicsAdapter[] tmpAdapters = new GraphicsAdapter[displayCount];
+                    for (int i = 0; i < displayCount; i++) {
+                        tmpAdapters[i] = new GraphicsAdapter((OpenTK.DisplayIndex)i);
+                    }
+
+                    adapters = new ReadOnlyCollection<GraphicsAdapter>(tmpAdapters);
 #else
                     adapters = new ReadOnlyCollection<GraphicsAdapter>(
 						new GraphicsAdapter[] {new GraphicsAdapter()});
@@ -259,47 +274,23 @@ namespace Microsoft.Xna.Framework.Graphics
 #if (WINDOWS && OPENGL) || LINUX
                     
 					//IList<OpenTK.DisplayDevice> displays = OpenTK.DisplayDevice.AvailableDisplays;
-					var displays = new List<OpenTK.DisplayDevice>();
-
-					OpenTK.DisplayIndex[] displayIndices = {
-						OpenTK.DisplayIndex.First,
-						OpenTK.DisplayIndex.Second,
-						OpenTK.DisplayIndex.Third,
-						OpenTK.DisplayIndex.Fourth,
-						OpenTK.DisplayIndex.Fifth,
-						OpenTK.DisplayIndex.Sixth,
-					};
-
-					foreach(var displayIndex in displayIndices) 
-					{
-						var currentDisplay = OpenTK.DisplayDevice.GetDisplay(displayIndex);
-						if(currentDisplay!= null) displays.Add(currentDisplay);
-					}
-
-                    if (displays.Count > 0)
-                    {
-                        modes.Clear();
-                        foreach (OpenTK.DisplayDevice display in displays)
+                    var display = OpenTK.DisplayDevice.GetDisplay(_displayIndex);
+                    foreach (OpenTK.DisplayResolution resolution in display.AvailableResolutions)
+                    {                                
+                        SurfaceFormat format = SurfaceFormat.Color;
+                        switch (resolution.BitsPerPixel)
                         {
-                            foreach (OpenTK.DisplayResolution resolution in display.AvailableResolutions)
-                            {                                
-                                SurfaceFormat format = SurfaceFormat.Color;
-                                switch (resolution.BitsPerPixel)
-                                {
-                                    case 32: format = SurfaceFormat.Color; break;
-                                    case 16: format = SurfaceFormat.Bgr565; break;
-                                    case 8: format = SurfaceFormat.Bgr565; break;
-                                    default:
-                                        break;
-                                }
-                                // Just report the 32 bit surfaces for now
-                                // Need to decide what to do about other surface formats
-                                if (format == SurfaceFormat.Color)
-                                {
-                                    modes.Add(new DisplayMode(resolution.Width, resolution.Height, (int)resolution.RefreshRate, format));
-                                }
-                            }
-
+                            case 32: format = SurfaceFormat.Color; break;
+                            case 16: format = SurfaceFormat.Bgr565; break;
+                            case 8: format = SurfaceFormat.Bgr565; break;
+                            default:
+                                break;
+                        }
+                        // Just report the 32 bit surfaces for now
+                        // Need to decide what to do about other surface formats
+                        if (format == SurfaceFormat.Color)
+                        {
+                            modes.Add(new DisplayMode(resolution.Width, resolution.Height, (int)resolution.RefreshRate, format));
                         }
                     }
 #endif
@@ -309,6 +300,30 @@ namespace Microsoft.Xna.Framework.Graphics
             }
         }
 
+#if (WINDOWS && OPENGL) || LINUX
+        private static List<OpenTK.DisplayDevice> _displays = new List<OpenTK.DisplayDevice>(6);
+        private static List<OpenTK.DisplayDevice> generateDisplayList()
+        {
+            _displays.Clear();
+
+            OpenTK.DisplayIndex[] displayIndices = {
+						OpenTK.DisplayIndex.First,
+						OpenTK.DisplayIndex.Second,
+						OpenTK.DisplayIndex.Third,
+						OpenTK.DisplayIndex.Fourth,
+						OpenTK.DisplayIndex.Fifth,
+						OpenTK.DisplayIndex.Sixth,
+					};
+
+            foreach (var displayIndex in displayIndices)
+            {
+                var currentDisplay = OpenTK.DisplayDevice.GetDisplay(displayIndex);
+                if (currentDisplay != null) _displays.Add(currentDisplay);
+            }
+            return _displays;
+        }
+
+#endif
         /*
         public int VendorId
         {
